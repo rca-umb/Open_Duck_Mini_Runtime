@@ -7,12 +7,12 @@ from mini_bdx_runtime.onnx_infer import OnnxInfer
 
 from mini_bdx_runtime.raw_imu import Imu
 from mini_bdx_runtime.poly_reference_motion import PolyReferenceMotion
-from mini_bdx_runtime.xbox_controller import XBoxController
+#from mini_bdx_runtime.xbox_controller import XBoxController
 from mini_bdx_runtime.feet_contacts import FeetContacts
-from mini_bdx_runtime.eyes import Eyes
-from mini_bdx_runtime.sounds import Sounds
-from mini_bdx_runtime.antennas import Antennas
-from mini_bdx_runtime.projector import Projector
+#from mini_bdx_runtime.eyes import Eyes
+#from mini_bdx_runtime.sounds import Sounds
+#from mini_bdx_runtime.antennas import Antennas
+#from mini_bdx_runtime.projector import Projector
 from mini_bdx_runtime.rl_utils import make_action_dict, LowPassActionFilter
 from mini_bdx_runtime.duck_config import DuckConfig
 
@@ -26,7 +26,7 @@ class RLWalk:
         self,
         onnx_model_path: str,
         duck_config_path: str = f"{HOME_DIR}/duck_config.json",
-        serial_port: str = "/dev/ttyACM0",
+        serial_port: str = "/dev/ttyAMA0",
         control_freq: float = 50,
         pid=[30, 0, 0],
         action_scale=0.25,
@@ -92,11 +92,13 @@ class RLWalk:
 
         self.last_commands = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
 
+        self.prev_dof_pos = None
+
         self.paused = self.duck_config.start_paused
 
         self.command_freq = 20  # hz
-        if self.commands:
-            self.xbox_controller = XBoxController(self.command_freq)
+#        if self.commands:
+#            self.xbox_controller = XBoxController(self.command_freq)
 
         # Reference motion, but we only really need the length of one phase
         # TODO
@@ -109,16 +111,16 @@ class RLWalk:
         )
 
         # Optional expression features
-        if self.duck_config.eyes:
-            self.eyes = Eyes()
-        if self.duck_config.projector:
-            self.projector = Projector()
-        if self.duck_config.speaker:
-            self.sounds = Sounds(
-                volume=1.0, sound_directory="../mini_bdx_runtime/assets/"
-            )
-        if self.duck_config.antennas:
-            self.antennas = Antennas()
+#        if self.duck_config.eyes:
+#            self.eyes = Eyes()
+#        if self.duck_config.projector:
+#            self.projector = Projector()
+#        if self.duck_config.speaker:
+#            self.sounds = Sounds(
+#                volume=1.0, sound_directory="../mini_bdx_runtime/assets/"
+#            )
+#        if self.duck_config.antennas:
+#            self.antennas = Antennas()
 
     def get_obs(self):
 
@@ -131,23 +133,18 @@ class RLWalk:
             ]
         )  # rad
 
-        dof_vel = self.hwi.get_present_velocities(
-            ignore=[
-                "left_antenna",
-                "right_antenna",
-            ]
-        )  # rad/s
-
-        if dof_pos is None or dof_vel is None:
+        if dof_pos is None:
             return None
 
         if len(dof_pos) != self.num_dofs:
             print(f"ERROR len(dof_pos) != {self.num_dofs}")
             return None
 
-        if len(dof_vel) != self.num_dofs:
-            print(f"ERROR len(dof_vel) != {self.num_dofs}")
-            return None
+        if self.prev_dof_pos is None:
+            dof_vel = np.zeros(self.num_dofs)
+        else:
+            dof_vel = (dof_pos - self.prev_dof_pos) * self.control_freq
+        self.prev_dof_pos = dof_pos.copy()
 
         cmds = self.last_commands
 
@@ -206,45 +203,45 @@ class RLWalk:
                 right_trigger = 0
                 t = time.time()
 
-                if self.commands:
-                    self.last_commands, self.buttons, left_trigger, right_trigger = (
-                        self.xbox_controller.get_last_command()
-                    )
-                    if self.buttons.dpad_up.triggered:
-                        self.phase_frequency_factor_offset += 0.05
-                        print(
-                            f"Phase frequency factor offset {round(self.phase_frequency_factor_offset, 3)}"
-                        )
-
-                    if self.buttons.dpad_down.triggered:
-                        self.phase_frequency_factor_offset -= 0.05
-                        print(
-                            f"Phase frequency factor offset {round(self.phase_frequency_factor_offset, 3)}"
-                        )
-
-                    if self.buttons.LB.is_pressed:
-                        self.phase_frequency_factor = 1.3
-                    else:
-                        self.phase_frequency_factor = 1.0
-
-                    if self.buttons.X.triggered:
-                        if self.duck_config.projector:
-                            self.projector.switch()
-
-                    if self.buttons.B.triggered:
-                        if self.duck_config.speaker:
-                            self.sounds.play_random_sound()
-
-                    if self.duck_config.antennas:
-                        self.antennas.set_position_left(right_trigger)
-                        self.antennas.set_position_right(left_trigger)
-
-                    if self.buttons.A.triggered:
-                        self.paused = not self.paused
-                        if self.paused:
-                            print("PAUSE")
-                        else:
-                            print("UNPAUSE")
+                # if self.commands:
+                #     self.last_commands, self.buttons, left_trigger, right_trigger = (
+                #         self.xbox_controller.get_last_command()
+                #     )
+                #     if self.buttons.dpad_up.triggered:
+                #         self.phase_frequency_factor_offset += 0.05
+                #         print(
+                #             f"Phase frequency factor offset {round(self.phase_frequency_factor_offset, 3)}"
+                #         )
+                #
+                #     if self.buttons.dpad_down.triggered:
+                #         self.phase_frequency_factor_offset -= 0.05
+                #         print(
+                #             f"Phase frequency factor offset {round(self.phase_frequency_factor_offset, 3)}"
+                #         )
+                #
+                #     if self.buttons.LB.is_pressed:
+                #         self.phase_frequency_factor = 1.3
+                #     else:
+                #         self.phase_frequency_factor = 1.0
+                #
+                #     if self.buttons.X.triggered:
+                #         if self.duck_config.projector:
+                #             self.projector.switch()
+                #
+                #     if self.buttons.B.triggered:
+                #         if self.duck_config.speaker:
+                #             self.sounds.play_random_sound()
+                #
+                #     if self.duck_config.antennas:
+                #         self.antennas.set_position_left(right_trigger)
+                #         self.antennas.set_position_right(left_trigger)
+                #
+                #     if self.buttons.A.triggered:
+                #         self.paused = not self.paused
+                #         if self.paused:
+                #             print("PAUSE")
+                #         else:
+                #             print("UNPAUSE")
 
                 if self.paused:
                     time.sleep(0.1)

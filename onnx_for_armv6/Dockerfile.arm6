@@ -1,0 +1,41 @@
+FROM balenalib/raspberry-pi-debian:bookworm
+
+RUN apt-get update && apt-get install -y \
+    wget build-essential gcc g++ make cmake git \
+    libffi-dev libssl-dev zlib1g-dev libbz2-dev \
+    libreadline-dev libsqlite3-dev libncurses5-dev \
+    libgdbm-dev libnss3-dev liblzma-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN wget https://www.python.org/ftp/python/3.13.5/Python-3.13.5.tgz \
+    && tar -xf Python-3.13.5.tgz \
+    && cd Python-3.13.5 \
+    && ./configure --enable-optimizations \
+    && make -j4 \
+    && make install \
+    && cd .. && rm -rf Python-3.13.5*
+
+RUN pip3 install cmake==3.30.5
+
+RUN pip3 install --extra-index-url https://www.piwheels.org/simple numpy
+
+RUN apt-get update && apt-get install -y ccache && rm -rf /var/lib/apt/lists/*
+ENV CCACHE_DIR=/ccache
+ENV PATH="/usr/lib/ccache:${PATH}"
+
+RUN ln -sf /usr/local/lib/python3.13/site-packages/numpy/_core/include/numpy /usr/local/include/numpy
+
+RUN pip3 install packaging setuptools wheel coloredlogs flatbuffers protobuf sympy
+
+COPY . /onnxruntime
+
+WORKDIR /onnxruntime
+
+RUN --mount=type=cache,target=/ccache \
+    ./build.sh --config Release --build_wheel --skip_tests \
+    --allow_running_as_root --skip_submodule_sync --parallel 4 --update \
+    --cmake_extra_defines CMAKE_SHARED_LINKER_FLAGS="-Wl,-z,noexecstack"
+
+RUN --mount=type=cache,target=/ccache \
+    ./build.sh --config Release --build_wheel --skip_tests \
+    --allow_running_as_root --skip_submodule_sync --parallel 1 --build
