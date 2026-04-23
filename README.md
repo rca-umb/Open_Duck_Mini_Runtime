@@ -6,6 +6,9 @@ This repo is a fork of [Open_Duck_Mini_Runtime](https://github.com/apirrone/Open
 
 **April 20, 2026**: I have successfully got the walking policy to run on my build of the droid which uses an original Raspberry Pi Zero W as opposed to the Rasperry Pi Zero 2 W recommended for the project. This may sound like a trivial difference, but the key distinctions between the two are that the first Pi Zero does not support 64-bit operating systems and only has a single core while the Zero 2 has 4. This is an issue as the runtime utilizes ONNX, and the runtime does not have a build available for armv6. Furthermore, ONNX tries to uses NEON which is not available on armv6, so building the runtime for this architecture is not that straightforward. Ultimately, I was able to get the policy to run on this hardware by forgoing ONNX altogether and recreating the model and inference code with pure NumPy.
 
+
+https://github.com/user-attachments/assets/b63a1b17-d0ae-4a2f-890a-13c5ce4b3efb
+
 ## Looking Ahead
 
 My immediate next step will be to put together the battery system so that the droid will no longer be leashed to the power supply. I'll use this opportunity to make some of the electrical systems more permenant, as right now everything is just connected with jumper wires. I need to get the rest of the parts for the expression features as well. I am considering possibly adding a second Pi Zero to control this stuff and handle the connection to the external control. Although I did get it to work so far, I am concerned about the feasibility of the Pi Zero as a controller with more responsibilites added to it.
