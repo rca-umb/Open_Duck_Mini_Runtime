@@ -886,10 +886,6 @@ MlasGemmQuantGetDispatch(
     } else if(!AIsSigned) {
         GemmQuantDispatch = GetMlasPlatform().GemmU8U8Dispatch;
     }
-#elif defined(MLAS_TARGET_ARM64EC) || (defined(MLAS_TARGET_ARM) && !defined(_MSC_VER) && defined(__ARM_NEON))
-    if(BIsSigned || !AIsSigned) {
-        GemmQuantDispatch = &MlasGemmU8X8DispatchNeon;
-    }
 #elif defined(MLAS_TARGET_WASM_SIMD)
     if (!AIsSigned) {
         GemmQuantDispatch = &MlasGemmU8X8DispatchWasmSimd;

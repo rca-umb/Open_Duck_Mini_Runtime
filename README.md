@@ -1,182 +1,35 @@
 # Open Duck Mini Runtime
 
-## Raspberry Pi zero 2W setup
+This repo is a fork of [Open_Duck_Mini_Runtime](https://github.com/apirrone/Open_Duck_Mini_Runtime), part of the [Open_Duck_Mini](https://github.com/apirrone/Open_Duck_Mini) project from Antoine Pirrone. I am using this to document all the changes and additions I have made/will make in my version of the robot.
 
-### Install Raspberry Pi OS
+## Current Status
 
-Download Raspberry Pi OS Lite (64-bit) from here : https://www.raspberrypi.com/software/operating-systems/
+**April 20, 2026**: I have successfully got the walking policy to run on my build of the droid which uses an original Raspberry Pi Zero W as opposed to the Rasperry Pi Zero 2 W recommended for the project. This may sound like a trivial difference, but the key distinctions between the two are that the first Pi Zero does not support 64-bit operating systems and only has a single core while the Zero 2 has 4. This is an issue as the runtime utilizes ONNX, and the runtime does not have a build available for armv6. Furthermore, ONNX tries to uses NEON which is not available on armv6, so building the runtime for this architecture is not that straightforward. Ultimately, I was able to get the policy to run on this hardware by forgoing ONNX altogether and recreating the model and inference code with pure NumPy.
 
-Follow the instructions here to install the OS on the SD card : https://www.raspberrypi.com/documentation/computers/getting-started.html
+## Looking Ahead
 
-With the Raspberry Pi Imager, you can pre-configure session, wifi and ssh. Do it like below :
+My immediate next step will be to put together the battery system so that the droid will no longer be leashed to the power supply. I'll use this opportunity to make some of the electrical systems more permenant, as right now everything is just connected with jumper wires. I need to get the rest of the parts for the expression features as well. I am considering possibly adding a second Pi Zero to control this stuff and handle the connection to the external control. Although I did get it to work so far, I am concerned about the feasibility of the Pi Zero as a controller with more responsibilites added to it.
 
-![imager_setup](https://github.com/user-attachments/assets/7a4987b2-de83-41dd-ab7f-585259685f16)
+## New Files
 
-> Tip: I configure the rasp to connect to my phone's hotspot, this way I can connect to it from anywhere.
+Runtime
+- `mini_bdx_runtime/mini_bdx_runtime/numpy_infer.py`: NumPy replacement of `onnx_infer.py`.
 
-### Setup SSH (If not setup during the installation)
+Data
+- `BEST_WALK.npz`: Walk policy `BEST_WALK_ONNX_2.onnx` converted to NumPy.
+- `pi_inference.json`: Observation + action pairs using the ONNX runtime for armv6 I compiled. Generated from `scripts/dump_inference_pi.py`.
 
-When first booting on the rasp, you will need to connect a screen and a keyboard. The first thing you should do is connect to a wifi network and enable SSH.
+ONNX Build
+- `onnx_for_armv6/Dockerfile.arm6`: Dockerfile I used to cross compile ONNX runtime for armv6.
+- `onnx_for_armv6/onnxruntime-1.18.1-cp313-cp313-linux_armv6l.whl`: ONNX runtime wheel for Python 3.13 on armv6. While this will successfully install and run on armv6, there is an error with the values it gets, so this **cannot be used!**.
+- `onnx_for_armv6/onnxruntime_mlas.cmake`: MLAS CMake file with the NEON block removed.
+- `onnx_for_armv6/mlasi.h`: Modified `onnxruntime/core/mlas/lib/mlasi.h` with NEON reference removed.
+- `onnx_for_armv6/qgemm.h`: Modified `onnxruntime/core/mlas/lib/qgem.h` with NEON reference removed.
 
-To do so, you can follow this guide : https://www.raspberrypi.com/documentation/computers/configuration.html#setting-up-wifi
-
-Then, you can connect to your rasp using SSH without having to plug a screen and a keyboard.
-
-### Update the system and install necessary stuff
-
-```bash
-sudo apt update
-sudo apt upgrade
-sudo apt install git
-sudo apt install python3-pip
-sudo apt install python3-virtualenvwrapper
-(optional) sudo apt install python3-picamzero
-
-```
-
-Add this to the end of the `.bashrc`:
-
-```bash
-export WORKON_HOME=$HOME/.virtualenvs
-export PROJECT_HOME=$HOME/Devel
-source /usr/share/virtualenvwrapper/virtualenvwrapper.sh
-```
-
-### Enable I2C
-
-`sudo raspi-config` -> `Interface Options` -> `I2C`
-
-TODO set 400KHz ?
-
-### Set the usbserial latency timer
-
-```bash
-cd  /etc/udev/rules.d/
-sudo touch 99-usb-serial.rules
-sudo nano 99-usb-serial.rules
-# copy the following line in the file
-SUBSYSTEM=="usb-serial", DRIVER=="ftdi_sio", ATTR{latency_timer}="1"
-```
-
-### Set the udev rules for the motor control board
-
-TODO
-
-
-### Setup xbox one controller over bluetooth
-
-Turn your xbox one controller on and set it in pairing mode by long pressing the sync button on the top of the controller.
-
-Run the following commands on the rasp :
-
-```bash
-bluetoothctl
-scan on
-```
-
-Wait for the controller to appear in the list, then run :
-
-```bash
-pair <controller_mac_address>
-trust <controller_mac_address>
-connect <controller_mac_address>
-```
-
-The led on the controller should stop blinking and stay on.
-
-You can test that it's working by running
-
-```bash
-python3 mini_bdx_runtime/mini_bdx_runtime/xbox_controller.py
-```
-
-## Speaker wiring and configuration
-Follow this tutorial
-
-> For now, don't activate `/dev/zero` when they ask
-
-https://learn.adafruit.com/adafruit-max98357-i2s-class-d-mono-amp?view=all
-
-
-## Install the runtime
-
-### Make a virtual environment and activate it
-
-```bash
-mkvirtualenv -p python3 open-duck-mini-runtime
-workon open-duck-mini-runtime
-```
-
-Clone this repository on your rasp, cd into the repo, then :
-
-```bash
-git clone https://github.com/apirrone/Open_Duck_Mini_Runtime
-cd Open_Duck_Mini_Runtime
-git checkout v2
-pip install -e .
-```
-
-In Raspberry Pi 5, you need to perform the following operations
-
-```bash
-pip uninstall -y RPi.GPIO
-pip install lgpio
-```
-
-
-## Test the IMU
-
-```bash
-python3 mini_bdx_runtime/mini_bdx_runtime/raw_imu.py
-```
-
-You can also run `python3 scripts/imu_server.py` on the robot and `python3 scripts/imu_client.py --ip <robot_ip>` on your computer to check that the frame is oriented correctly. 
-
-> To find the ip address of the robot, run `ifconfig` on the robot
-
-## Test motors
-
-This will allow you to verify all your motors are connected and configured.
-
-```bash
-python3 scripts/check_motors.py
-```
-
-## Make your duck_config.json
-
-Copy `example_config.json` in the home directory of your duck and rename it `duck_config.json`.
-
-`cp example_config.json ~/duck_config.json`
-
-In this file, you can configure some stuff, like registering if you installed the expression features, installed the imu upside down or and other stuff. You also write the joints offsets of your duck here
-
-## Find the joints offsets
-
-This script will guide you through finding the joints offsets of your robot that you can then write in your `duck_config.json`
-
-> This procedure won't be necessary in the future as we will be flashing the offsets directly in each motor's eeprom.
-
-```bash
-cd scripts/
-python find_soft_offsets.py
-```
-
-## Run the walk !
-
-Download the [latest policy checkpoint ](https://github.com/apirrone/Open_Duck_Mini/blob/v2/BEST_WALK_ONNX_2.onnx) and copy it to your duck.
-
-`cd scripts/`
-
-`python v2_rl_walk_mujoco.py --onnx_model_path <path_to>/BEST_WALK_ONNX_2.onnx`
-
-
-
-```
-- The commands are : 
-- A to pause/unpause
-- X to turn on/off the projector
-- B to play a random sound
-- Y to turn on/off head control (very experimental, I don't recommend trying that, it can break your duck's head)
-- left and right triggers to control the left and right antennas
-- LB (new!) press and hold to increase the walking frequency, kind of a sprint mode 🙂
-```
+Scripts
+- `scripts/check_legs.py`: Moves both legs so you can see check that the legs are mapped to the left and right sides correctly.
+- `scripts/compare_inference_desktop.py`
+- `scripts/dump_inference_pi.py`
+- `scripts/keyboard_walk.py`: Allows control of the bot like `scripts/v2_rl_walk_mujoco.py` but using key presses instead of an Xbox controller.
+- `scripts/lock_motors.py`: Sets the bot to the starting position and then locks the motors.
+- `scripts/swap_legs.py`: Swaps the motors mapped to the "left" and "right" motor IDs.s

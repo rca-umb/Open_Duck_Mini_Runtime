@@ -46,9 +46,6 @@ Abstract:
 #include <windows.h>
 #include <intrin.h>
 #else
-#if defined(__arm__) || defined(__aarch64__)
-#include <arm_neon.h>
-#endif
 #if defined(__x86_64__) || defined(__i386__)
 #if !defined(signature_VORTEX_ebx) && !defined(signature_NEXGEN_ebx) && !defined(signature_AMD_ebx)//workaround for Bug 96238 - [i386] cpuid.h header needs include guards
 #include <cpuid.h>
@@ -1310,10 +1307,7 @@ MlasConvDepthwiseFloat_CHW(
 // Cross-platform wrappers for 32-bit vector intrinsics.
 //
 
-#if defined(MLAS_TARGET_ARM) && defined(__ARM_NEON)
-#define MLAS_NEON_INTRINSICS
-#define MLAS_NEON32_INTRINSICS
-#elif defined(MLAS_TARGET_ARM64) || defined(MLAS_TARGET_ARM64EC)
+#if defined(MLAS_TARGET_ARM64) || defined(MLAS_TARGET_ARM64EC)
 #define MLAS_NEON_INTRINSICS
 #define MLAS_NEON64_INTRINSICS
 #elif defined(MLAS_TARGET_POWER)
