@@ -4,6 +4,8 @@ import pickle
 import numpy as np
 from mini_bdx_runtime.rustypot_position_hwi import HWI
 from mini_bdx_runtime.onnx_infer import OnnxInfer
+from mini_bdx_runtime import loop_profiler
+from mini_bdx_runtime.loop_profiler import SEC_READ, SEC_INFER, SEC_WRITE
 
 from mini_bdx_runtime.raw_imu import Imu
 from mini_bdx_runtime.poly_reference_motion import PolyReferenceMotion
@@ -43,7 +45,16 @@ class RLWalk:
         self.pitch_bias = pitch_bias
 
         self.onnx_model_path = onnx_model_path
-        self.policy = OnnxInfer(self.onnx_model_path, awd=True)
+        # Select the inference backend from the model file extension. The Pi Zero
+        # (ARMv6) has no working ONNX Runtime, so a `.npz` is the NumPy reimpl
+        # (the configuration that actually runs on the robot); `.onnx` still uses
+        # ONNX Runtime on hardware that supports it.
+        if str(onnx_model_path).endswith(".npz"):
+            from mini_bdx_runtime.numpy_infer import NumpyInfer
+
+            self.policy = NumpyInfer(self.onnx_model_path, awd=True)
+        else:
+            self.policy = OnnxInfer(self.onnx_model_path, awd=True)
 
         self.num_dofs = 14
         self.max_motor_velocity = 5.24  # rad/s
@@ -195,6 +206,16 @@ class RLWalk:
 
     def run(self):
         i = 0
+        # Optional, off-by-default timing harness (set BDX_PROFILE=1). When
+        # disabled, every prof.* call below is a single branch+return, so
+        # normal operation is unaffected.
+        prof = loop_profiler.from_env(self.control_freq)
+        if prof.enabled:
+            print(
+                f"[profile] on impl={prof.impl} target={prof.target_freq_hz}Hz "
+                f"iters={prof.capacity} gc={'OFF' if prof.gc_disabled else 'on'} "
+                f"sched_fifo={prof.sched_fifo}"
+            )
         try:
             print("Starting")
             start_t = time.time()
@@ -202,6 +223,7 @@ class RLWalk:
                 left_trigger = 0
                 right_trigger = 0
                 t = time.time()
+                prof.begin()
 
                 # if self.commands:
                 #     self.last_commands, self.buttons, left_trigger, right_trigger = (
@@ -250,6 +272,7 @@ class RLWalk:
                 obs = self.get_obs()
                 if obs is None:
                     continue
+                prof.lap(SEC_READ)  # (a) read state / sensors
 
                 self.imitation_i += 1 * (
                     self.phase_frequency_factor + self.phase_frequency_factor_offset
@@ -276,7 +299,9 @@ class RLWalk:
                         print("BREAKING ")
                         break
 
+                prof.skip()  # drop phase/bookkeeping glue from the infer timing
                 action = self.policy.infer(obs)
+                prof.lap(SEC_INFER)  # (b) policy inference
 
                 self.last_last_last_action = self.last_last_action.copy()
                 self.last_last_action = self.last_action.copy()
@@ -311,9 +336,18 @@ class RLWalk:
                     self.motor_targets, list(self.hwi.joints.keys())
                 )
 
+                prof.skip()  # drop make_action_dict glue from the write timing
                 self.hwi.set_position_all(action_dict)
+                prof.lap(SEC_WRITE)  # (c) serial write to the 14 servos
+                prof.end()
 
                 i += 1
+
+                if prof.done and prof.stop_when_full:
+                    # buffer full -> stop a profiling run cleanly (one print only,
+                    # never a per-iteration print in the hot loop)
+                    print(f"[profile] captured {prof.capacity} iterations")
+                    break
 
                 took = time.time() - t
                 # print("Full loop took", took, "fps : ", np.around(1 / took, 2))
@@ -332,6 +366,13 @@ class RLWalk:
             if self.duck_config.projector:
                 self.projector.stop()
             self.feet_contacts.stop()
+        finally:
+            # Dump the timing buffer to disk once, after the run (never inside
+            # the hot loop). No-op when profiling is disabled.
+            if prof.enabled:
+                path = prof.save()
+                prof.close()
+                print(f"[profile] saved {prof.n_recorded} iterations to {path}")
 
         if self.save_obs:
             pickle.dump(self.saved_obs, open("robot_saved_obs.pkl", "wb"))
