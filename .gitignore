@@ -5,3 +5,4 @@ dist
 venv/
 .claude
 .DS_Store
+*.egg-info
