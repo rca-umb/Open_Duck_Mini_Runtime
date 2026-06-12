@@ -5,20 +5,32 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "open-duck-mini-runtime"
 version = "0.1.0"
-description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
-    "adafruit-circuitpython-bno055>=5.4.22",
-    "numpy>=2.4.6",
-    "openai>=2.41.0",
+    "adafruit-circuitpython-bno055>=5.4.22,<5.5",
+    "numpy>=2.4.0,<2.5",
+    "openai>=2.41.0,<2.42",
     "pypot",
-    "rustypot>=1.5.0",
-    "scipy>=1.17.1",
+    "rustypot>=1.5.0,<1.6",
+    "scipy>=1.16.3,<1.18",
 ]
+
+# PyPI ships no ARMv6 binary wheels for the native dependencies and compiling them 
+# from source is a huge pain on the Pi Zero 1. piwheels.org hosts prebuilt ARMv6 
+# cp313 wheels, so we make sure to enforce those when building on the Pi.
+[[tool.uv.index]]
+name = "piwheels"
+url = "https://www.piwheels.org/simple/"
+explicit = true
 
 [tool.uv.sources]
 pypot = { git = "https://github.com/pollen-robotics/pypot", rev = "support-feetech-sts3215" }
+numpy = { index = "piwheels", marker = "platform_machine == 'armv6l'" }
+scipy = { index = "piwheels", marker = "platform_machine == 'armv6l'" }
+rustypot = { index = "piwheels", marker = "platform_machine == 'armv6l'" }
+pydantic-core = { index = "piwheels", marker = "platform_machine == 'armv6l'" }
+jiter = { index = "piwheels", marker = "platform_machine == 'armv6l'" }
 
 [tool.setuptools.package-dir]
 "" = "mini_bdx_runtime"
