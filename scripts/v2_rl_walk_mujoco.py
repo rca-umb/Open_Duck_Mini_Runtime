@@ -3,7 +3,6 @@ import pickle
 
 import numpy as np
 from mini_bdx_runtime.rustypot_position_hwi import HWI
-from mini_bdx_runtime.onnx_infer import OnnxInfer
 from mini_bdx_runtime import loop_profiler
 from mini_bdx_runtime.loop_profiler import SEC_READ, SEC_INFER, SEC_WRITE
 
@@ -54,6 +53,8 @@ class RLWalk:
 
             self.policy = NumpyInfer(self.onnx_model_path, awd=True)
         else:
+            from mini_bdx_runtime.onnx_infer import OnnxInfer
+
             self.policy = OnnxInfer(self.onnx_model_path, awd=True)
 
         self.num_dofs = 14

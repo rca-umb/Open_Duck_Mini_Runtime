@@ -10,11 +10,22 @@ requires-python = ">=3.13"
 dependencies = [
     "adafruit-circuitpython-bno055>=5.4.22,<5.5",
     "numpy>=2.4.0,<2.5",
-    "openai>=2.41.0,<2.42",
     "pypot",
     "rustypot>=1.5.0,<1.6",
     "scipy>=1.16.3,<1.18",
+    "RPi.GPIO ; platform_machine == 'armv6l'",
 ]
+
+[project.optional-dependencies]
+openai = [
+    "openai>=2.41.0,<2.42"
+]
+expression = [
+    "rpi-ws281x ; platform_machine == 'armv6l'"
+]
+
+[tool.uv]
+exclude-dependencies = ["opencv-contrib-python"] # no ARMv6 wheels
 
 # PyPI ships no ARMv6 binary wheels for the native dependencies and compiling them 
 # from source is a huge pain on the Pi Zero 1. piwheels.org hosts prebuilt ARMv6 
@@ -31,7 +42,9 @@ scipy = { index = "piwheels", marker = "platform_machine == 'armv6l'" }
 rustypot = { index = "piwheels", marker = "platform_machine == 'armv6l'" }
 pydantic-core = { index = "piwheels", marker = "platform_machine == 'armv6l'" }
 jiter = { index = "piwheels", marker = "platform_machine == 'armv6l'" }
-
+rpi-gpio   = { index = "piwheels", marker = "platform_machine == 'armv6l'" }
+rpi-ws281x = { index = "piwheels", marker = "platform_machine == 'armv6l'" }
+  
 [tool.setuptools.package-dir]
 "" = "mini_bdx_runtime"
 
