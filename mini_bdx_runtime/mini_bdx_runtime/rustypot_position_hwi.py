@@ -2,8 +2,8 @@ import time
 
 import numpy as np
 import rustypot
-from mini_bdx_runtime.duck_config import DuckConfig
 
+from mini_bdx_runtime.duck_config import DuckConfig
 
 class HWI:
     def __init__(self, duck_config: DuckConfig, usb_port: str = "/dev/ttyACM0"):
@@ -71,24 +71,34 @@ class HWI:
         self.joints_offsets = self.duck_config.joints_offset
 
         self.kps = np.ones(len(self.joints)) * 32  # default kp
-        self.kds = np.ones(len(self.joints)) * 0  # default kd
+        self.kds = np.ones(len(self.joints)) * 0 # default kd
         self.low_torque_kps = np.ones(len(self.joints)) * 2
 
-        self.io = rustypot.feetech(usb_port, 1000000)
+        self.io = rustypot.Sts3215PyController(usb_port, 1000000, 1)
 
     def set_kps(self, kps):
         self.kps = kps
-        self.io.set_kps(list(self.joints.values()), self.kps)
+        self.io.sync_write_p_coefficient(
+            list(self.joints.values()),
+            # sync_write_p_coefficient needs a list of uint8
+            [int(round(float(v))) for v in self.kps]
+        )
 
     def set_kds(self, kds):
         self.kds = kds
-        self.io.set_kds(list(self.joints.values()), self.kds)
+        self.io.sync_write_d_coefficient(
+            list(self.joints.values()),
+            [int(round(float(v))) for v in self.kds]
+        )
 
     def set_kp(self, id, kp):
-        self.io.set_kps([id], [kp])
+        self.io.sync_write_p_coefficient([id], [kp])
 
     def turn_on(self):
-        self.io.set_kps(list(self.joints.values()), self.low_torque_kps)
+        self.io.sync_write_p_coefficient(
+            list(self.joints.values()),
+            [int(round(float(v))) for v in self.low_torque_kps]
+        )
         print("turn on : low KPS set")
         time.sleep(1)
 
@@ -97,11 +107,14 @@ class HWI:
 
         time.sleep(1)
 
-        self.io.set_kps(list(self.joints.values()), self.kps)
+        self.io.sync_write_p_coefficient(
+            list(self.joints.values()),
+            [int(round(float(v))) for v in self.kps]
+        )
         print("turn on : high kps")
 
     def turn_off(self):
-        self.io.disable_torque(list(self.joints.values()))
+        self.io.sync_write_torque_enable(list(self.joints.values()), [False] * len(self.joints))
 
     def set_position(self, joint_name, pos):
         """
@@ -109,7 +122,7 @@ class HWI:
         """
         id = self.joints[joint_name]
         pos = pos + self.joints_offsets[joint_name]
-        self.io.write_goal_position([id], [pos])
+        self.io.sync_write_goal_position([id], [pos])
 
     def set_position_all(self, joints_positions):
         """
@@ -121,7 +134,8 @@ class HWI:
             for joint, position in joints_positions.items()
         }
 
-        self.io.write_goal_position(
+        # unlike sync_write_p_coefficient, sync_write_goal_position needs a list of f64
+        self.io.sync_write_goal_position(
             list(self.joints.values()), list(ids_positions.values())
         )
 
@@ -131,7 +145,7 @@ class HWI:
         """
 
         try:
-            present_positions = self.io.read_present_position(
+            present_positions = self.io.sync_read_present_position(
                 list(self.joints.values())
             )
         except Exception as e:
@@ -150,7 +164,7 @@ class HWI:
         Returns the present velocities in rad/s (default) or rev/min
         """
         try:
-            present_velocities = self.io.read_present_velocity(
+            present_velocities = self.io.sync_read_present_speed(
                 list(self.joints.values())
             )
         except Exception as e:
