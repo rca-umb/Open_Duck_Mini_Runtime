@@ -352,11 +352,11 @@ class RLWalk:
 
                 took = time.time() - t
                 # print("Full loop took", took, "fps : ", np.around(1 / took, 2))
-                if (1 / self.control_freq - took) < 0:
-                    print(
-                        "Policy control budget exceeded by",
-                        np.around(took - 1 / self.control_freq, 3),
-                    )
+                #if (1 / self.control_freq - took) < 0:
+                #    print(
+                #        "Policy control budget exceeded by",
+                #        np.around(took - 1 / self.control_freq, 3),
+                #    )
                 time.sleep(max(0, 1 / self.control_freq - took))
 
         except KeyboardInterrupt:
